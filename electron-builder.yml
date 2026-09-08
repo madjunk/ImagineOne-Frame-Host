@@ -1,5 +1,5 @@
 appId: it.imagineone.frame
-productName: ImagineOne
+productName: Imagine One IT
 copyright: Copyright © 2026 Imagine One IT
 directories:
   buildResources: build
@@ -32,7 +32,7 @@ nsis:
   createDesktopShortcut: always
   createStartMenuShortcut: true
   runAfterFinish: true
-  shortcutName: ImagineOne
+  shortcutName: Imagine One IT
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
   artifactName: ImagineOne-Setup.${ext}  # stable name: /releases/latest/download/ImagineOne-Setup.exe

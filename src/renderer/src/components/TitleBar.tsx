@@ -6,14 +6,12 @@ interface Props {
 }
 
 /**
- * Title bar.
+ * Title bar — one colour edge to edge.
  *
- * With the app's sidebar on screen the bar is two-tone: a block exactly as
- * wide (and as coloured) as the sidebar — holding ☰ and the logo — so the
- * sidebar visually continues up into the window chrome and follows it when it
- * expands/collapses; the rest takes the page background and holds the org
- * name, user and settings. Without a sidebar (sign-in, org step) the whole bar
- * wears the resolved branding colour.
+ * Signed in, it takes the app's Window Background (the colour behind the
+ * white card, measured from the page) so the bar reads as part of the window;
+ * a tenant's explicit "Desktop Title Bar" colour overrides that. On the
+ * sign-in / organisation screens it wears the resolved branding colour.
  */
 export function TitleBar({ state }: Props) {
   const { branding, user, online, platform, phase, sidebar } = state
@@ -24,13 +22,9 @@ export function TitleBar({ state }: Props) {
     window.frameHost.openMenu(r ? r.left : 8, r ? r.bottom : 40)
   }
 
-  const split = !!sidebar && phase === 'ready' && !branding.barExplicit
-  const blockWidth = split ? sidebar!.left + sidebar!.width : 0
-  const blockBg = split && sidebar!.color ? sidebar!.color : branding.barBackground
-  const blockFg = split && sidebar!.color ? contrastText(sidebar!.color) : branding.barForeground
-  const restBg = split ? sidebar!.pageColor || '#ffffff' : branding.barBackground
-  const restFg = split ? contrastText(restBg) : branding.barForeground
-  const showLogoInBlock = !split || blockWidth >= 150
+  const followPage = phase === 'ready' && !branding.barExplicit && !!sidebar?.pageColor
+  const restBg = followPage ? sidebar!.pageColor : branding.barBackground
+  const restFg = followPage ? contrastText(restBg) : branding.barForeground
 
   // The OS paints the minimize/maximize/close strip: keep it the exact colour
   // of the bar's right side.
@@ -39,19 +33,15 @@ export function TitleBar({ state }: Props) {
   }, [restBg, restFg])
 
   return (
-    <header className={`titlebar titlebar--${platform}${split ? ' titlebar--split' : ''}`} style={{ background: restBg, color: restFg }}>
-      <div
-        className="titlebar__block"
-        style={split ? { width: blockWidth, background: blockBg, color: blockFg } : { background: 'transparent', color: 'inherit' }}
-      >
+    <header className={`titlebar titlebar--${platform}`} style={{ background: restBg, color: restFg }}>
+      <div className="titlebar__block">
         <button ref={menuBtn} className="titlebar__menu" title="Menu" onClick={openMenu} aria-label="Menu">
           <Icon d="M4 6h16M4 12h16M4 18h16" />
         </button>
-        {showLogoInBlock && <Logo branding={branding} />}
+        <Logo branding={branding} />
       </div>
 
       <div className="titlebar__brand" title={branding.name}>
-        {!showLogoInBlock && <Logo branding={branding} />}
         {/* With a logo the name is already on screen; show text only without one. */}
         {!branding.logoUrl && <span className="titlebar__title">{branding.name}</span>}
       </div>

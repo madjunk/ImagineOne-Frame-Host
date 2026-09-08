@@ -81,7 +81,7 @@ export function OrgScreen({ state }: Props) {
           {orgBusy ? 'Checking…' : 'Continue'}
         </button>
 
-        <div className="org__footer">© {new Date().getFullYear()} ImagineOne IT</div>
+        <div className="org__footer">© {new Date().getFullYear()} Imagine One IT</div>
       </form>
     </div>
   )

@@ -20,7 +20,9 @@ contextBridge.exposeInMainWorld('imagineOneFrame', {
     save: (slug: string, creds: { email: string; password: string }) =>
       ipcRenderer.invoke('frame:credentials:save', String(slug), { email: String(creds?.email ?? ''), password: String(creds?.password ?? '') }),
     clear: (slug: string) => ipcRenderer.invoke('frame:credentials:clear', String(slug))
-  }
+  },
+  /** The app saved theme settings: re-read branding now instead of waiting. */
+  refreshBranding: () => ipcRenderer.send('frame:refresh-branding')
 })
 interface SidebarMetrics {
   left: number

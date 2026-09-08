@@ -51,6 +51,8 @@ export interface FrameBranding {
   primaryColor: string
   /** True when the tenant set explicit title bar colours: the bar is one solid colour and does not follow the sidebar. */
   barExplicit: boolean
+  /** Theme "Logo Background" — the strip at the top of the sidebar; the split bar's left block continues it. */
+  logoBackground: string | null
 }
 
 export type FramePhase =
@@ -94,10 +96,11 @@ export const TITLE_BAR_HEIGHT = 48
 
 export const DEFAULT_BRANDING: FrameBranding = {
   source: 'default',
-  name: 'ImagineOne',
+  name: 'Imagine One IT',
   logoUrl: null,
   barBackground: '#f5f6f8',
   barForeground: '#1f2328',
   primaryColor: '#2563eb',
-  barExplicit: false
+  barExplicit: false,
+  logoBackground: null
 }

@@ -15,6 +15,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 }
 
+const APP_TITLE = 'Imagine One IT'
+
 let win: BrowserWindow | null = null
 let appView: WebContentsView | null = null
 let tray: Tray | null = null
@@ -274,16 +276,32 @@ function createAppView(): WebContentsView {
     syncNav()
     void refreshUser().then(refreshBranding)
   })
-  wc.on('did-navigate-in-page', syncNav)
+  // In-app navigation is all in-page (SPA); re-read the theme there too so a
+  // saved Theme Customization change shows without a reload (throttled).
+  let lastInPageBranding = 0
+  wc.on('did-navigate-in-page', () => {
+    syncNav()
+    const now = Date.now()
+    if (now - lastInPageBranding > 2000) {
+      lastInPageBranding = now
+      void refreshBranding()
+    }
+  })
+  // Settings saved on a page without navigating: poll while the app is shown.
+  setInterval(() => {
+    if (state.phase === 'ready' && win?.isVisible()) void refreshBranding()
+  }, 30_000)
   wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
     if (isMainFrame && code !== -3 /* ABORTED */) {
       pushState({ phase: 'config-error', errorMessage: `Could not load ${url}: ${desc} (${code})` })
       showAppView(false)
     }
   })
-  wc.on('page-title-updated', (e, title) => {
+  // The window title is always the product name (taskbar, alt-tab); the
+  // page's own <title> is not propagated.
+  wc.on('page-title-updated', (e) => {
     e.preventDefault()
-    win?.setTitle(title || state.branding.name)
+    win?.setTitle(APP_TITLE)
   })
 
   return view
@@ -296,7 +314,7 @@ function createWindow(): void {
     resizable: false,
     center: true,
     show: false,
-    title: 'ImagineOne',
+    title: APP_TITLE,
     icon: join(app.isPackaged ? process.resourcesPath : join(__dirname, '../../build'), 'icon.png'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#111418' : '#ffffff',
     // Frameless with native window controls: the renderer draws the bar.
@@ -457,7 +475,7 @@ function applyBranding(branding: FrameBranding): void {
   if (win && process.platform !== 'darwin') {
     win.setTitleBarOverlay({ color: branding.barBackground, symbolColor: branding.barForeground, height: TITLE_BAR_HEIGHT })
   }
-  if (win && !appView?.webContents.getTitle()) win.setTitle(branding.name)
+  win?.setTitle(APP_TITLE)
 }
 
 async function refreshUser(): Promise<void> {
@@ -596,6 +614,9 @@ function registerIpc(): void {
   ipcMain.handle('frame:credentials:clear', (e, slug: string) => {
     if (fromAppView(e) && slug) clearCredentials(slug)
   })
+  ipcMain.on('frame:refresh-branding', (e) => {
+    if (e.sender === appView?.webContents) void refreshBranding()
+  })
   ipcMain.on('frame:open-menu', (_e, x: number, y: number) => {
     const menu = Menu.getApplicationMenu()
     if (win && menu) menu.popup({ window: win, x: Math.round(x), y: Math.round(y) })
@@ -624,10 +645,10 @@ function createTray(): void {
   const icon = nativeImage.createFromPath(iconPath)
   if (icon.isEmpty()) return
   tray = new Tray(process.platform === 'darwin' ? icon.resize({ width: 18, height: 18 }) : icon)
-  tray.setToolTip('ImagineOne')
+  tray.setToolTip(APP_TITLE)
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Open ImagineOne', click: () => win?.show() },
+      { label: `Open ${APP_TITLE}`, click: () => win?.show() },
       { label: 'Home', click: actions.home },
       { type: 'separator' },
       { label: 'Check for updates', click: actions.checkForUpdates },

@@ -41,7 +41,8 @@ function fromTenant(baseUrl: string, t: TenantBranding): FrameBranding {
     barBackground: bar,
     barForeground: contrastForeground(bar),
     primaryColor: isHex(t.accentColor) ? expandHex(t.accentColor) : bar,
-    barExplicit: false
+    barExplicit: false,
+    logoBackground: null
   }
 }
 
@@ -76,7 +77,8 @@ function fromSettings(baseUrl: string, s: Record<string, string | null>): FrameB
     barBackground: bar,
     barForeground: fg,
     primaryColor: isHex(primary) ? expandHex(primary) : bar,
-    barExplicit: explicit
+    barExplicit: explicit,
+    logoBackground: isHex(s['theme-logo-background-color']) ? expandHex(s['theme-logo-background-color'] as string) : null
   }
 }
 
@@ -91,7 +93,8 @@ function fromSite(baseUrl: string, s: Record<string, unknown>): FrameBranding {
     barBackground: bar,
     barForeground: contrastForeground(bar),
     primaryColor: isHex(primary) ? expandHex(primary) : DEFAULT_BRANDING.primaryColor,
-    barExplicit: false
+    barExplicit: false,
+    logoBackground: null
   }
 }
 

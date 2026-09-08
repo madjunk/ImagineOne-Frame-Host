@@ -1,7 +1,7 @@
 {
   "name": "imagineone-frame-host",
-  "productName": "ImagineOne",
-  "version": "0.1.1",
+  "productName": "Imagine One IT",
+  "version": "0.1.0",
   "description": "ImagineOne Application Frame Host — native desktop shell for the ImagineOne web application",
   "main": "./out/main/index.js",
   "author": "Imagine One IT",
