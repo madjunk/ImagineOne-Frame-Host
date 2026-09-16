@@ -1,12 +1,31 @@
 import { app, BrowserWindow, WebContentsView, shell, ipcMain, nativeTheme, dialog, Tray, Menu, nativeImage, screen } from 'electron'
 import { join } from 'path'
+import { mkdirSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
-import { getConfig, setConfig, applyPackagedDefaults } from './config'
+import { getConfig, setConfig, applyPackagedDefaults, packagedTenantSlug } from './config'
 import { APP_PARTITION, appSession, checkDeployment, fetchTenant, fetchMe, logout } from './api'
 import { buildMenu } from './menu'
-import { resolveBranding } from './branding'
+import { resolveBranding, contrastForeground } from './branding'
 import { getCredentials, saveCredentials, clearCredentials } from './credentials'
 import { COMPACT_WINDOW, DEFAULT_BRANDING, TITLE_BAR_HEIGHT, type FrameState, type FrameConfig, type FrameBranding } from '../shared/types'
+
+// ---------------------------------------------------------------------------
+// Per-customer data isolation. MUST run before the single-instance lock and
+// before any config/path access below. Point userData at a per-slug folder so
+// each customer install keeps its own config, cache, cookies and single-
+// instance lock. Without this, every customer build shares
+// %APPDATA%\<productName> (the base productName is identical across builds — the
+// per-customer identity is only on the installer), so a second customer's app
+// inherits the first's already-seeded server URL and login session. The slug is
+// read straight from the packaged frame-config.json, so it is available this
+// early, before `app` is ready.
+// ---------------------------------------------------------------------------
+const INSTALL_SLUG = packagedTenantSlug()
+if (INSTALL_SLUG) {
+  const dataDir = join(app.getPath('appData'), 'ImagineOne', INSTALL_SLUG)
+  mkdirSync(dataDir, { recursive: true })
+  app.setPath('userData', dataDir)
+}
 
 // ---------------------------------------------------------------------------
 // Single instance — a second launch just focuses the existing window.
@@ -316,7 +335,19 @@ function createWindow(): void {
     show: false,
     title: APP_TITLE,
     icon: join(app.isPackaged ? process.resourcesPath : join(__dirname, '../../build'), 'icon.png'),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111418' : '#ffffff',
+    // Glass framing: on Win11 the OS paints an acrylic material behind the
+    // window, on macOS a vibrancy blur; the renderer's title-bar strip is
+    // translucent (styles.css) so that blur shows through, tinted by the tenant
+    // colour. The app content view below is opaque and covers the rest. The
+    // window background must be transparent on Windows for the material to show.
+    backgroundColor:
+      process.platform === 'win32'
+        ? '#00000000'
+        : nativeTheme.shouldUseDarkColors
+          ? '#111418'
+          : '#ffffff',
+    ...(process.platform === 'win32' ? { backgroundMaterial: 'acrylic' as const } : {}),
+    ...(process.platform === 'darwin' ? { vibrancy: 'under-window' as const } : {}),
     // Frameless with native window controls: the renderer draws the bar.
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     titleBarOverlay:
@@ -473,7 +504,15 @@ function cssToHex(color: string): string {
 function applyBranding(branding: FrameBranding): void {
   pushState({ branding })
   if (win && process.platform !== 'darwin') {
-    win.setTitleBarOverlay({ color: branding.barBackground, symbolColor: branding.barForeground, height: TITLE_BAR_HEIGHT })
+    // Match the OS caption-button strip (min/max/close, right corner) to the
+    // colour the renderer actually paints the bar. When the bar follows the
+    // page it uses pageColor, so the strip must too — otherwise the 30s
+    // branding poll resets the strip to barBackground and it drifts lighter
+    // than the rest of the bar. Mirrors TitleBar.tsx's restBg computation.
+    const followPage = state.phase === 'ready' && !branding.barExplicit && !!state.sidebar?.pageColor
+    const barBg = followPage ? cssToHex(state.sidebar!.pageColor) : branding.barBackground
+    const barFg = followPage ? contrastForeground(barBg) : branding.barForeground
+    win.setTitleBarOverlay({ color: barBg, symbolColor: barFg, height: TITLE_BAR_HEIGHT })
   }
   win?.setTitle(APP_TITLE)
 }
@@ -684,7 +723,7 @@ app.on('window-all-closed', () => {
 })
 
 app.whenReady().then(() => {
-  app.setAppUserModelId('it.imagineone.frame')
+  app.setAppUserModelId(INSTALL_SLUG ? `it.imagineone.frame.${INSTALL_SLUG}` : 'it.imagineone.frame')
   applyPackagedDefaults(join(app.isPackaged ? process.resourcesPath : process.cwd(), 'frame-config.json'))
   state.config = getConfig()
 

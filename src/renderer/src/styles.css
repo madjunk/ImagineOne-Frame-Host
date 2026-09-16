@@ -25,14 +25,16 @@
 html, body, #root { height: 100%; margin: 0; }
 body {
   font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  background: var(--bg);
+  /* Transparent so the window's OS glass material shows behind the title-bar
+     strip; the content area is made opaque on .frame-body below. */
+  background: transparent;
   color: var(--fg);
   overflow: hidden;
   user-select: none;
 }
 
 .frame { display: flex; flex-direction: column; height: 100%; }
-.frame-body { flex: 1; position: relative; }
+.frame-body { flex: 1; position: relative; background: var(--bg); }
 
 /* ---- Title bar (48px, matches TITLE_BAR_HEIGHT). Colors come inline from branding. ---- */
 .titlebar {
@@ -46,7 +48,7 @@ body {
   width: env(titlebar-area-width, 100%);
   box-sizing: border-box;
   background: var(--bar);
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.14);
   -webkit-app-region: drag;
   transition: background 0.25s ease, color 0.25s ease;
 }

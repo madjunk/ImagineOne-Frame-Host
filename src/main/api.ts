@@ -1,8 +1,18 @@
 import { session } from 'electron'
+import { packagedTenantSlug } from './config'
 import type { CurrentUser, TenantBranding } from '../shared/types'
 
-/** The app view and all API calls share this persistent cookie store. */
-export const APP_PARTITION = 'persist:imagineone'
+/**
+ * The app view and all API calls share this persistent cookie store. It is
+ * keyed by the packaged tenant slug (`persist:imagineone-<slug>`) so two
+ * customer installs on one machine never share a login session. This is
+ * defence-in-depth on top of the per-customer `userData` folder (main/index.ts):
+ * a partition is stored *under* userData, so per-customer userData already
+ * separates the cookies — the distinct name just makes the isolation explicit
+ * and survives even if the data path were ever shared.
+ */
+const partitionSlug = packagedTenantSlug()
+export const APP_PARTITION = partitionSlug ? `persist:imagineone-${partitionSlug}` : 'persist:imagineone'
 
 export function appSession() {
   return session.fromPartition(APP_PARTITION)

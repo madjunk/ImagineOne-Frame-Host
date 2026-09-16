@@ -32,8 +32,13 @@ export function TitleBar({ state }: Props) {
     window.frameHost.reportBarColors(restBg, restFg)
   }, [restBg, restFg])
 
+  // Glass framing: a translucent tint of the (API-driven) bar colour so the
+  // window's acrylic/vibrancy material shows through as frosted glass. The OS
+  // caption buttons stay the solid colour (reportBarColors above).
+  const glassBg = `linear-gradient(180deg, ${toRgba(restBg, 0.82)}, ${toRgba(restBg, 0.6)})`
+
   return (
-    <header className={`titlebar titlebar--${platform}`} style={{ background: restBg, color: restFg }}>
+    <header className={`titlebar titlebar--${platform}`} style={{ background: glassBg, color: restFg }}>
       <div className="titlebar__block">
         <button ref={menuBtn} className="titlebar__menu" title="Menu" onClick={openMenu} aria-label="Menu">
           <Icon d="M4 6h16M4 12h16M4 18h16" />
@@ -99,6 +104,19 @@ function contrastText(color: string): string {
   const lin = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
   const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
   return L > 0.5 ? '#1f2328' : '#ffffff'
+}
+
+/** hex or rgb[a] colour -> rgba() with the given alpha (for the glass tint). */
+function toRgba(color: string, a: number): string {
+  const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hex) {
+    let h = hex[1]
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+    return `rgba(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}, ${a})`
+  }
+  const rgb = color.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i)
+  if (rgb) return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${a})`
+  return color
 }
 
 export function Icon({ d, size = 18 }: { d: string; size?: number }) {
