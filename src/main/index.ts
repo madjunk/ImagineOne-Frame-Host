@@ -335,19 +335,7 @@ function createWindow(): void {
     show: false,
     title: APP_TITLE,
     icon: join(app.isPackaged ? process.resourcesPath : join(__dirname, '../../build'), 'icon.png'),
-    // Glass framing: on Win11 the OS paints an acrylic material behind the
-    // window, on macOS a vibrancy blur; the renderer's title-bar strip is
-    // translucent (styles.css) so that blur shows through, tinted by the tenant
-    // colour. The app content view below is opaque and covers the rest. The
-    // window background must be transparent on Windows for the material to show.
-    backgroundColor:
-      process.platform === 'win32'
-        ? '#00000000'
-        : nativeTheme.shouldUseDarkColors
-          ? '#111418'
-          : '#ffffff',
-    ...(process.platform === 'win32' ? { backgroundMaterial: 'acrylic' as const } : {}),
-    ...(process.platform === 'darwin' ? { vibrancy: 'under-window' as const } : {}),
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111418' : '#ffffff',
     // Frameless with native window controls: the renderer draws the bar.
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     titleBarOverlay:
