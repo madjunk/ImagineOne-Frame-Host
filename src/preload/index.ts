@@ -30,7 +30,9 @@ const api = {
   settingsClosed: () => ipcRenderer.send('frame:settings-closed'),
   checkForUpdates: () => ipcRenderer.send('frame:action', 'checkForUpdates'),
   reportOnline: (online: boolean) => ipcRenderer.send('frame:online', online),
-  reportBarColors: (background: string, foreground: string) => ipcRenderer.send('frame:bar-colors', background, foreground)
+  minimize: () => ipcRenderer.send('frame:win', 'minimize'),
+  toggleMaximize: () => ipcRenderer.send('frame:win', 'toggleMaximize'),
+  closeWindow: () => ipcRenderer.send('frame:win', 'close')
 }
 
 export type FrameHostApi = typeof api

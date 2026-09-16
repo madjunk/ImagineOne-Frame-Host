@@ -5,7 +5,7 @@ import { autoUpdater } from 'electron-updater'
 import { getConfig, setConfig, applyPackagedDefaults, packagedTenantSlug } from './config'
 import { APP_PARTITION, appSession, checkDeployment, fetchTenant, fetchMe, logout } from './api'
 import { buildMenu } from './menu'
-import { resolveBranding, contrastForeground } from './branding'
+import { resolveBranding } from './branding'
 import { getCredentials, saveCredentials, clearCredentials } from './credentials'
 import { COMPACT_WINDOW, DEFAULT_BRANDING, TITLE_BAR_HEIGHT, type FrameState, type FrameConfig, type FrameBranding } from '../shared/types'
 
@@ -53,6 +53,7 @@ const state: FrameState = {
   online: true,
   canGoBack: false,
   canGoForward: false,
+  maximized: false,
   appVersion: app.getVersion(),
   platform: process.platform
 }
@@ -335,13 +336,21 @@ function createWindow(): void {
     show: false,
     title: APP_TITLE,
     icon: join(app.isPackaged ? process.resourcesPath : join(__dirname, '../../build'), 'icon.png'),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111418' : '#ffffff',
-    // Frameless with native window controls: the renderer draws the bar.
+    // Glass: acrylic (Win11) / vibrancy (macOS) behind a transparent window so
+    // the translucent title bar reads as frosted glass. On Windows the OS caption
+    // buttons are dropped (no titleBarOverlay) and the renderer draws its own
+    // min/max/close, so the whole bar is one glass surface with no solid strip.
+    backgroundColor:
+      process.platform === 'win32'
+        ? '#00000000'
+        : nativeTheme.shouldUseDarkColors
+          ? '#111418'
+          : '#ffffff',
+    ...(process.platform === 'win32' ? { backgroundMaterial: 'acrylic' as const } : {}),
+    ...(process.platform === 'darwin' ? { vibrancy: 'under-window' as const } : {}),
+    // macOS keeps its native traffic lights (hiddenInset); Windows is fully
+    // frameless (hidden + no overlay) so the renderer buttons are the only chrome.
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
-    titleBarOverlay:
-      process.platform === 'darwin'
-        ? undefined
-        : { color: DEFAULT_BRANDING.barBackground, symbolColor: DEFAULT_BRANDING.barForeground, height: TITLE_BAR_HEIGHT },
     trafficLightPosition: { x: 14, y: 12 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -360,6 +369,8 @@ function createWindow(): void {
   win.on('unmaximize', layoutAppView)
   win.on('enter-full-screen', layoutAppView)
   win.on('leave-full-screen', layoutAppView)
+  win.on('maximize', () => pushState({ maximized: true }))
+  win.on('unmaximize', () => pushState({ maximized: false }))
   win.on('ready-to-show', () => win?.show())
   win.on('close', (e) => {
     // Minimize to tray instead of quitting (Windows/Linux). Cmd+Q / Quit menu sets `quitting`.
@@ -483,25 +494,14 @@ async function refreshBranding(): Promise<void> {
 }
 
 /** rgb()/rgba() → #rrggbb (titleBarOverlay wants hex); hex passes through. */
-function cssToHex(color: string): string {
-  const m = color.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i)
-  if (!m) return color
-  return '#' + [m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('')
-}
-
 function applyBranding(branding: FrameBranding): void {
   pushState({ branding })
-  if (win && process.platform !== 'darwin') {
-    // Match the OS caption-button strip (min/max/close, right corner) to the
-    // colour the renderer actually paints the bar. When the bar follows the
-    // page it uses pageColor, so the strip must too — otherwise the 30s
-    // branding poll resets the strip to barBackground and it drifts lighter
-    // than the rest of the bar. Mirrors TitleBar.tsx's restBg computation.
-    const followPage = state.phase === 'ready' && !branding.barExplicit && !!state.sidebar?.pageColor
-    const barBg = followPage ? cssToHex(state.sidebar!.pageColor) : branding.barBackground
-    const barFg = followPage ? contrastForeground(barBg) : branding.barForeground
-    win.setTitleBarOverlay({ color: barBg, symbolColor: barFg, height: TITLE_BAR_HEIGHT })
-  }
+  // The OS caption-button strip (min/max/close) is set ONLY by reportBarColors,
+  // which reports the exact colour the renderer paints the bar — so the strip can
+  // never diverge from it. We deliberately do NOT set the overlay here:
+  // applyBranding can run before the app view has reported pageColor, which would
+  // briefly paint the strip barBackground and leave it mismatched with a
+  // page-following bar (and the 30s branding poll could make that stick).
   win?.setTitle(APP_TITLE)
 }
 
@@ -652,15 +652,13 @@ function registerIpc(): void {
     if (state.phase === 'ready' || state.phase === 'login') showAppView(true)
   })
   ipcMain.on('frame:online', (_e, online: boolean) => pushState({ online }))
-  // The title bar tells us the colour of its right side; the OS-drawn caption
-  // buttons (Windows) are painted to match.
-  ipcMain.on('frame:bar-colors', (e, background: string, foreground: string) => {
-    if (e.sender !== win?.webContents || process.platform === 'darwin') return
-    const color = cssToHex(String(background))
-    const symbolColor = cssToHex(String(foreground))
-    if (/^#[0-9a-f]{6}$/i.test(color) && /^#[0-9a-f]{6}$/i.test(symbolColor)) {
-      win.setTitleBarOverlay({ color, symbolColor, height: TITLE_BAR_HEIGHT })
-    }
+  // Custom window controls: the renderer draws min/max/close so they're part of
+  // the glass bar (no OS caption strip). macOS uses its native traffic lights.
+  ipcMain.on('frame:win', (e, action: 'minimize' | 'toggleMaximize' | 'close') => {
+    if (e.sender !== win?.webContents || !win) return
+    if (action === 'minimize') win.minimize()
+    else if (action === 'toggleMaximize') win.isMaximized() ? win.unmaximize() : win.maximize()
+    else if (action === 'close') win.close()
   })
 }
 

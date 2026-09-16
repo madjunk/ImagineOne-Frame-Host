@@ -87,6 +87,8 @@ export interface FrameState {
   online: boolean
   canGoBack: boolean
   canGoForward: boolean
+  /** Whether the window is maximized (drives the custom maximize/restore icon). */
+  maximized: boolean
   appVersion: string
   platform: NodeJS.Platform
 }

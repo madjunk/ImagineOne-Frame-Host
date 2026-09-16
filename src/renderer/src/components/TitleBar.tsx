@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import type { FrameState } from '../../../shared/types'
 
 interface Props {
@@ -14,7 +14,7 @@ interface Props {
  * sign-in / organisation screens it wears the resolved branding colour.
  */
 export function TitleBar({ state }: Props) {
-  const { branding, user, online, platform, phase, sidebar } = state
+  const { branding, user, online, platform, phase, sidebar, maximized } = state
   const menuBtn = useRef<HTMLButtonElement>(null)
 
   const openMenu = () => {
@@ -26,14 +26,12 @@ export function TitleBar({ state }: Props) {
   const restBg = followPage ? sidebar!.pageColor : branding.barBackground
   const restFg = followPage ? contrastText(restBg) : branding.barForeground
 
-  // The OS paints the minimize/maximize/close strip: keep it the exact colour
-  // of the bar's right side.
-  useEffect(() => {
-    window.frameHost.reportBarColors(restBg, restFg)
-  }, [restBg, restFg])
+  // Glass: a translucent tint of the bar colour so the window's acrylic/vibrancy
+  // material shows through as frosted glass.
+  const glassBg = `linear-gradient(180deg, ${toRgba(restBg, 0.82)}, ${toRgba(restBg, 0.6)})`
 
   return (
-    <header className={`titlebar titlebar--${platform}`} style={{ background: restBg, color: restFg }}>
+    <header className={`titlebar titlebar--${platform}`} style={{ background: glassBg, color: restFg }}>
       <div className="titlebar__block">
         <button ref={menuBtn} className="titlebar__menu" title="Menu" onClick={openMenu} aria-label="Menu">
           <Icon d="M4 6h16M4 12h16M4 18h16" />
@@ -57,6 +55,23 @@ export function TitleBar({ state }: Props) {
         <button title="Frame settings" onClick={() => window.frameHost.openSettings()} aria-label="Frame settings">
           <Icon d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
         </button>
+        )}
+        {platform !== 'darwin' && (
+          <div className="titlebar__winctl">
+            <button className="titlebar__wc" title="Minimize" aria-label="Minimize" onClick={() => window.frameHost.minimize()}>
+              <svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true"><line x1="1.5" y1="5.5" x2="9.5" y2="5.5" stroke="currentColor" strokeWidth="1.1" /></svg>
+            </button>
+            <button className="titlebar__wc" title={maximized ? 'Restore' : 'Maximize'} aria-label="Maximize" onClick={() => window.frameHost.toggleMaximize()}>
+              {maximized ? (
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.1" aria-hidden="true"><rect x="1.5" y="3" width="6" height="6" /><path d="M3.5 3V1.5h6v6H8" /></svg>
+              ) : (
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.1" aria-hidden="true"><rect x="1.5" y="1.5" width="8" height="8" /></svg>
+              )}
+            </button>
+            <button className="titlebar__wc titlebar__wc--close" title="Close" aria-label="Close" onClick={() => window.frameHost.closeWindow()}>
+              <svg width="11" height="11" viewBox="0 0 11 11" aria-hidden="true"><line x1="1.5" y1="1.5" x2="9.5" y2="9.5" stroke="currentColor" strokeWidth="1.1" /><line x1="9.5" y1="1.5" x2="1.5" y2="9.5" stroke="currentColor" strokeWidth="1.1" /></svg>
+            </button>
+          </div>
         )}
       </div>
     </header>
@@ -99,6 +114,19 @@ function contrastText(color: string): string {
   const lin = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }
   const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
   return L > 0.5 ? '#1f2328' : '#ffffff'
+}
+
+/** hex or rgb[a] colour -> rgba() with the given alpha (for the glass tint). */
+function toRgba(color: string, a: number): string {
+  const hex = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hex) {
+    let h = hex[1]
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+    return `rgba(${parseInt(h.slice(0, 2), 16)}, ${parseInt(h.slice(2, 4), 16)}, ${parseInt(h.slice(4, 6), 16)}, ${a})`
+  }
+  const rgb = color.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i)
+  if (rgb) return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${a})`
+  return color
 }
 
 export function Icon({ d, size = 18 }: { d: string; size?: number }) {
