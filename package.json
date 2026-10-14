@@ -1,8 +1,8 @@
 {
   "name": "imagineone-frame-host",
   "productName": "Imagine One IT",
-  "version": "0.1.0",
-  "description": "ImagineOne Application Frame Host — native desktop shell for the ImagineOne web application",
+  "version": "0.2.0",
+  "description": "ImagineOne Application Frame Host \u2014 native desktop shell for the ImagineOne web application",
   "main": "./out/main/index.js",
   "author": "Imagine One IT",
   "license": "UNLICENSED",
@@ -14,7 +14,8 @@
     "start": "electron-vite preview",
     "dist:win": "npm run build && electron-builder --win",
     "dist:mac": "npm run build && electron-builder --mac",
-    "dist": "npm run build && electron-builder --win --mac"
+    "dist": "npm run build && electron-builder --win --mac",
+    "build:ui": "vite build --config tauri/vite.ui.config.ts"
   },
   "dependencies": {
     "electron-updater": "^6.8.9"

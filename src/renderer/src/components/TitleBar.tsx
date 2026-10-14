@@ -31,23 +31,23 @@ export function TitleBar({ state }: Props) {
   const glassBg = `linear-gradient(180deg, ${toRgba(restBg, 0.82)}, ${toRgba(restBg, 0.6)})`
 
   return (
-    <header className={`titlebar titlebar--${platform}`} style={{ background: glassBg, color: restFg }}>
-      <div className="titlebar__block">
+    <header className={`titlebar titlebar--${platform}`} style={{ background: glassBg, color: restFg }} data-tauri-drag-region>
+      <div className="titlebar__block" data-tauri-drag-region>
         <button ref={menuBtn} className="titlebar__menu" title="Menu" onClick={openMenu} aria-label="Menu">
           <Icon d="M4 6h16M4 12h16M4 18h16" />
         </button>
         <Logo branding={branding} />
       </div>
 
-      <div className="titlebar__brand" title={branding.name}>
+      <div className="titlebar__brand" title={branding.name} data-tauri-drag-region>
         {/* With a logo the name is already on screen; show text only without one. */}
-        {!branding.logoUrl && <span className="titlebar__title">{branding.name}</span>}
+        {!branding.logoUrl && <span className="titlebar__title" data-tauri-drag-region>{branding.name}</span>}
       </div>
 
-      <div className="titlebar__right">
+      <div className="titlebar__right" data-tauri-drag-region>
         {!online && <span className="pill pill--warn">Offline</span>}
         {phase === 'ready' && user && (
-          <span className="titlebar__user" title={user.email}>
+          <span className="titlebar__user" title={user.email} data-tauri-drag-region>
             {user.name || user.email}
           </span>
         )}
@@ -85,9 +85,9 @@ function canOpenSettings(state: FrameState): boolean {
 
 function Logo({ branding }: { branding: FrameState['branding'] }) {
   return branding.logoUrl ? (
-    <img src={branding.logoUrl} alt="" className="titlebar__logo" />
+    <img src={branding.logoUrl} alt="" className="titlebar__logo" data-tauri-drag-region />
   ) : (
-    <span className="titlebar__tile" style={{ background: branding.primaryColor }}>
+    <span className="titlebar__tile" style={{ background: branding.primaryColor }} data-tauri-drag-region>
       {initials(branding.name)}
     </span>
   )

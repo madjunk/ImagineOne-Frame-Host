@@ -1,0 +1,25 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Imagine One IT",
+  "mainBinaryName": "imagineone",
+  "version": "../../package.json",
+  "identifier": "it.imagineone.frame",
+  "build": { "frontendDist": "../ui-dist" },
+  "app": { "windows": [], "security": { "csp": null }, "withGlobalTauri": false },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "resources": { "resources/frame-config.json": "resources/frame-config.json" },
+    "publisher": "Imagine One IT",
+    "copyright": "Copyright © 2026 Imagine One IT",
+    "shortDescription": "Imagine One IT desktop app",
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "nsis": { "installMode": "currentUser", "installerIcon": "icons/icon.ico", "installerHooks": "windows/hooks.nsh" }
+    }
+  },
+  "plugins": {
+    "updater": { "pubkey": "", "endpoints": [], "windows": { "installMode": "passive" } }
+  }
+}

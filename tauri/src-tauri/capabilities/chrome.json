@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "title-bar",
+  "description": "Our title bar and its screens (local page, webview \"chrome\"). The web app gets its own capability at run time, for the configured server only (lib.rs, allow_server).",
+  "webviews": ["chrome"],
+  "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "allow-frame-get-state",
+    "allow-frame-action",
+    "allow-frame-continue-org",
+    "allow-frame-save-settings",
+    "allow-frame-settings-closed",
+    "allow-frame-open-menu",
+    "allow-frame-online",
+    "allow-frame-win"
+  ]
+}

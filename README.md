@@ -1,147 +1,84 @@
-# ImagineOne Application Frame Host
+# ImagineOne Application Frame Host (desktop app)
 
-Native desktop shell (Electron) for the ImagineOne web application. Implements
-`frame-host-api-reference.md`: it hosts the existing web app in a sandboxed view
-with no browser chrome, locks navigation to the install's own domain, verifies
-the configured company slug against the server at every start, and exposes a
-single native menu whose Administration section appears only for `admin` users.
-No application code changes are required — everything it needs is already live
-on the server.
+The Windows desktop app for the ImagineOne web application ("Imagine One IT", and each customer's
+branded copy). It hosts the web app in its own window with no browser chrome, locks navigation to the
+install's own server, verifies the configured company slug against the server at every start, and adds
+a ☰ menu whose Administration section appears only for admins. Implements
+`frame-host-api-reference.md`; the server needs no changes.
 
-## Stack
+Built with **Tauri 2**: a small Rust program plus the Edge WebView2 that is part of Windows 10/11. The
+installer is about 2 MB; the Electron version it replaces was about 112 MB.
 
-- Electron 44 (Chromium + Node) · electron-vite · React 19 + TypeScript
-- electron-builder → Windows NSIS installer, macOS DMG
-- electron-updater → auto-update from GitHub Releases (configurable)
+## What it does
+
+- **Window:** compact (480 × 700) for the organisation step and the sign-in page, full size once
+  signed in (size and position remembered). Closing it keeps the app in the tray; Quit (☰ menu or
+  tray) really quits.
+- **Title bar:** our own glass title bar takes the tenant's branding (logo, name, colours) and, when
+  signed in, continues the web app's page colour or the tenant's "Desktop Title Bar" colours.
+- **Boot:**
+  1. `GET /api/public/deployment` checks the server can be reached.
+  2. `GET /api/public/tenant/:slug` is the install lock, when a company is configured.
+  3. The page reports whether someone is still signed in, which decides between the app, the sign-in page and the organisation step.
+- **Navigation:** only the configured server loads inside. Google / Microsoft sign-in runs in a small
+  popup that shares the app's cookies and hands back to the app. Everything else (other sites,
+  `mailto:`, `tel:`) opens in the default browser or app. Downloads are shown in Explorer.
+- **Identifies itself:** the User-Agent carries `ImagineOneFrame/<version>`, so the server lets it past
+  the "install the app" (PWA) gate. Its own API calls also send `X-ImagineOne-Frame`.
+- **Remember me:** the web app's sign-in page uses `window.imagineOneFrame.credentials` (same API as
+  the Electron preload). The password is kept with Windows data protection (DPAPI), per organisation,
+  for this Windows user only.
+- **Frame settings** (server address, company slug): for admins. They can also be opened from the
+  "Configuration problem" screen, where nobody is signed in.
+- **Updates:** from GitHub releases, signed with our update key; the app asks before installing.
+
+## Replacing the Electron version
+
+- Same product name, and the same settings file (`%APPDATA%\Imagine One IT\frame-config.json`, or
+  `%APPDATA%\ImagineOne\<slug>\` for a customer build). So the new installer finds the Electron app,
+  closes and uninstalls it, and keeps its server and company.
+- Publish also uploads `latest.yml` / `<slug>.yml`, so Electron installs update themselves to this
+  version.
+- People sign in once more: the Electron app's cookies and saved passwords can't be read by this one.
+
+## Build and release (ImagineOne Studio, or Desktop.ps1)
+
+From ImagineOne Studio: **Desktop app** page (standard installer) and **Customers › Build installer**.
+Or `Desktop.cmd` / PowerShell:
+
+```powershell
+.\Desktop.ps1 Setup                          # one time: Rust + the C++ build tools
+.\Desktop.ps1 Dev [-Server https://app.imagineone.it]
+.\Desktop.ps1 Build [-Publish]                 # dist\ImagineOne-Setup.exe (+ .sig, update.json, latest.yml)
+.\Desktop.ps1 Customer -Customer nefco [-Publish]   # ..\customers\nefco\dist\nefco-Setup.exe
+.\Desktop.ps1 Bump                            # raise the version before publishing an update
+.\Desktop.ps1 Publish [-Customer nefco]       # upload the last build to the draft GitHub release v<version>
+```
+
+- **Standard installer:** applies `resources\frame-config.json` on first run (Studio: Desktop app ›
+  Installer config).
+- **Customer build:** uses `..\customers\<slug>\profile.json` (name, server, release repo) and the
+  customer's icons.
+- **Publish:** needs `$env:GH_TOKEN` with contents: write on the release repo
+  (`madjunk/ImagineOne-Frame-Host` unless the customer profile says otherwise). It uploads the installer
+  and both update feeds to the draft release `v<version>`; publish the draft on GitHub to make it
+  live.
+- **Download link:** the web app's `/download` page links to
+  `releases/latest/download/ImagineOne-Setup.exe`, and that name is unchanged.
+- **Update key:** builds are signed with `%USERPROFILE%\.tauri\i1-phone.key`, the same key as I1 Phone
+  and the console. Never make a new one while apps are installed: copy it from the backup.
 
 ## Layout
 
 ```
-src/
-  main/        Electron main process
-    index.ts     window, app view, boot sequence, actions, tray, updater, IPC
-    menu.ts      native menu (role-aware Administration section)
-    api.ts       calls to /api/public/*, /api/auth/* on the app's cookie session
-    config.ts    per-install config (server URL + company slug), JSON on disk
-  preload/     the only bridge between the title-bar renderer and main
-  renderer/    React title bar + boot/error/settings overlays (NOT the web app)
-  shared/      types shared by all three
-build/         icons, macOS entitlements (replace placeholder icons)
-resources/     tray icon, optional frame-config.json packaged defaults
-electron-builder.yml
+Desktop.ps1 / Desktop.cmd   setup, run, build, customer build, bump, publish
+src/renderer/               title bar + organisation / status / settings screens (React);
+                            tauri-bridge.ts gives it window.frameHost in the Tauri app
+src/shared/types.ts         the state the title bar draws (FrameState)
+tauri/
+  vite.ui.config.ts         npm run build:ui -> tauri/ui-dist (the title bar for the app)
+  src-tauri/src/lib.rs      window (title bar + app webviews), boot, branding, menu, tray, sign-in popup,
+                            saved passwords, updates; APP_JS = window.imagineOneFrame for the web app
+  src-tauri/windows/        installer hooks (replace the Electron app)
+src/main, src/preload       the old Electron version (no longer built; kept for reference)
 ```
-
-How the window is composed: the renderer draws a 40 px title bar; the web app
-lives in a separate `WebContentsView` (its own `persist:imagineone` cookie
-partition, no preload, fully sandboxed) positioned below it. The server's
-`auth_token` cookie persists in that partition across restarts, so the frame
-never handles the token itself.
-
-## Boot sequence
-
-1. `GET /api/public/deployment` — reachability check. Fails → configuration screen.
-2. If a company slug is configured: `GET /api/public/tenant/:slug`. 404 or slug
-   mismatch → configuration screen (this is the install lock). Otherwise the
-   response's `appTitle`, `logoUrl` and `primaryColor` brand the title bar.
-3. Load the app; `GET /api/auth/me` on every navigation keeps the user/role
-   current and rebuilds the native menu.
-
-## Navigation scope
-
-`will-navigate` and `setWindowOpenHandler` cancel anything whose host differs
-from the configured server URL and hand it to the OS default handler
-(`shell.openExternal`). `mailto:`/`tel:` go to the OS too. Downloads use the
-normal save dialog and are revealed in the file manager when complete.
-
-## Configuration
-
-Runtime config is a JSON file in the user's app-data folder:
-
-- Windows: `%APPDATA%\ImagineOne\frame-config.json`
-- macOS: `~/Library/Application Support/ImagineOne/frame-config.json`
-
-```json
-{ "baseUrl": "https://app.imagineone.it", "tenantSlug": "" }
-```
-
-Users can edit it from the ⚙ button / "Frame settings…" menu item. To ship a
-**customer-locked installer**, put the same JSON in `resources/frame-config.json`
-before building; it is applied on first run.
-
-## Develop
-
-```bash
-npm install
-npm run dev          # hot-reloading renderer + main
-npm run typecheck
-```
-
-`npm run dev` opens DevTools under View. In dev, the frame reads
-`./frame-config.json` from the project root on first run if present.
-
-## Build installers
-
-```bash
-npm run dist:win     # dist/ImagineOne-Setup-<version>.exe   (build on Windows)
-npm run dist:mac     # dist/ImagineOne-<version>-universal.dmg (build on macOS)
-```
-
-Cross-building is limited: build each platform on that platform (or in CI —
-a GitHub Actions matrix with `windows-latest` and `macos-latest` is the usual
-setup).
-
-### Signing / notarization (needed before distributing)
-
-- **Windows**: an Authenticode certificate. Set `WIN_CSC_LINK` (base64 .pfx) and
-  `WIN_CSC_KEY_PASSWORD`, or configure `azureSignOptions` in
-  `electron-builder.yml`. Unsigned builds trigger SmartScreen.
-- **macOS**: a *Developer ID Application* certificate. Set `CSC_LINK` /
-  `CSC_KEY_PASSWORD`, then `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
-  `APPLE_TEAM_ID` and flip `notarize: true` in `electron-builder.yml`.
-
-### Auto-update
-
-`publish` in `electron-builder.yml` points at GitHub Releases
-(`madjunk/ImagineOne-Frame-Host` — change to the real repo). Publishing a release
-with the installer assets + `latest.yml`/`latest-mac.yml` (electron-builder
-produces them with `--publish always`) is all the app needs; it checks 10 s after
-launch and on "Check for updates…". Signed builds are required for macOS
-updates to install.
-
-## Replacing placeholder artwork
-
-`build/icon.png` (1024²), `build/icon.ico`, and `resources/tray.png` are
-generated placeholders (blue square with a "1"). Drop in real artwork with the
-same names.
-
-## Notes for the child-instance work
-
-- Admin menu paths (`/admin/settings`, `/admin/users`, `/admin/software-update`)
-  are in `src/main/menu.ts` — adjust to the real routes.
-- `selfHostedConsoleUrl` from `/api/auth/me`, when non-empty, adds an
-  "Open deployment console" item under Administration.
-- Sign out calls `POST /api/auth/logout`, clears the partition's cookies, and
-  navigates to `/login`.
-
-## Publishing a release (what the app's /download page links to)
-
-The web app's `/download` page links to
-`https://github.com/madjunk/ImagineOne-Frame-Host/releases/latest/download/ImagineOne-Setup.exe`
-(override with `DESKTOP_APP_DOWNLOAD_URL` on the server). The frame's
-auto-updater reads `latest.yml` from the same release. So one release = both.
-
-1. Create the public repo `madjunk/ImagineOne-Frame-Host` once (it can hold
-   this source, or stay empty and only carry releases).
-2. Bump `version` in `package.json`.
-3. Build and publish in one go — needs a GitHub token with `contents: write`
-   on that repo:
-   ```powershell
-   $env:GH_TOKEN = "<token>"
-   npm run dist:win -- --publish always
-   ```
-   electron-builder uploads `ImagineOne-Setup.exe`, the `.blockmap`, and
-   `latest.yml` to a draft release named after the version; publish the draft
-   on GitHub and the `/download` link and auto-update both go live.
-
-Without a token, `npm run dist:win` and drag the three files from `dist/`
-onto a new release by hand — the asset must be named exactly `ImagineOne-Setup.exe`.
